@@ -3,9 +3,15 @@ package io.quarkus.domino.scm;
 import io.quarkus.bom.decomposer.ReleaseId;
 import io.quarkus.bom.decomposer.ReleaseOrigin;
 import io.quarkus.bom.decomposer.ReleaseVersion;
+import java.util.Comparator;
 import java.util.Objects;
 
-public class ScmRevision implements ReleaseVersion, ReleaseId {
+public class ScmRevision implements ReleaseVersion, ReleaseId, Comparable<ScmRevision> {
+
+    private static final Comparator<ScmRevision> COMPARATOR = Comparator
+            .comparing(ScmRevision::getRepository)
+            .thenComparing(ScmRevision::getKind)
+            .thenComparing(ScmRevision::getValue);
 
     public enum Kind {
         COMMIT,
@@ -90,5 +96,10 @@ public class ScmRevision implements ReleaseVersion, ReleaseId {
     @Override
     public String toString() {
         return repo.getId() + "#" + value;
+    }
+
+    @Override
+    public int compareTo(ScmRevision other) {
+        return COMPARATOR.compare(this, other);
     }
 }

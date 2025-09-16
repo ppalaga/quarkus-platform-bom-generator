@@ -1,9 +1,12 @@
 package io.quarkus.domino.scm;
 
 import io.quarkus.bom.decomposer.ReleaseOrigin;
+import java.util.Comparator;
 import java.util.Objects;
 
-public class ScmRepository implements ReleaseOrigin {
+public class ScmRepository implements ReleaseOrigin, Comparable<ScmRepository> {
+    private static final Comparator<ScmRepository> COMPARATOR = Comparator.comparing(ScmRepository::getId)
+            .thenComparing(ScmRepository::getUrl);
 
     public static ScmRepository ofUrl(String url) {
         return new ScmRepository(url, url);
@@ -59,5 +62,10 @@ public class ScmRepository implements ReleaseOrigin {
     @Override
     public String toString() {
         return id;
+    }
+
+    @Override
+    public int compareTo(ScmRepository other) {
+        return COMPARATOR.compare(this, other);
     }
 }
