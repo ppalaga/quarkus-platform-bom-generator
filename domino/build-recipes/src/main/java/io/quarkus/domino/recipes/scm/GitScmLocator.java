@@ -45,7 +45,6 @@ public class GitScmLocator implements ScmLocator {
         public RecipeGroupManager recipeGroupManager;
         private List<String> recipeRepos = List.of(BuildRecipe.DEFAULT_RECIPE_REPO_URL);
         private boolean cacheRepoTags;
-        private String cacheUrl;
         private ScmLocator fallbackScmLocator;
         private boolean cloneLocalRecipeRepos = true;
         private Path gitCloneBaseDir;
@@ -157,14 +156,17 @@ public class GitScmLocator implements ScmLocator {
             //checkout the git recipe database and load the recipes
             final List<RecipeDirectory> managers = new ArrayList<>(recipeRepos.size());
             for (var i : recipeRepos) {
-                final RecipeRepositoryManager repoManager;
+                final RecipeDirectory repoManager;
                 if (remotePattern == null || remotePattern.matcher(i).matches()) {
                     log.infof("Cloning recipe repo %s", i);
                     try {
-                        repoManager = gitCloneBaseDir == null
-                                ? RecipeRepositoryManager.create(i)
-                                : RecipeRepositoryManager.create(i, Optional.empty(),
-                                        Files.createTempDirectory(gitCloneBaseDir, "recipe"));
+                        if (gitCloneBaseDir == null) {
+                            repoManager = RecipeRepositoryManager.create(i);
+                        } else {
+                            final Path workingCopyDir = gitCloneBaseDir.resolve(uriToFileName(i));
+                            Files.createDirectories(workingCopyDir);
+                            repoManager = RecipeRepositoryManager.create(i, Optional.empty(), workingCopyDir);
+                        }
                     } catch (Exception e) {
                         throw new RuntimeException("Failed to checkout " + i, e);
                     }
@@ -369,6 +371,16 @@ public class GitScmLocator implements ScmLocator {
             }
         }
         return selectedTag;
+    }
+
+    static String uriToFileName(String uri) {
+        return uri.replaceAll("^(http:|https:|git(\\+ssh)?:|ssh:|file:)/+", "")
+                .replaceAll("^git@", "")
+                .replaceAll("[^A-Za-z0-9._-]+", "-")
+                .replace("-[\\-]+", "-")
+                .replaceAll("^[-.]+", "")
+                .replaceAll("[-.]+$", "")
+                .replaceAll("\\.git$", "");
     }
 
     private Map<String, String> getTagToHashMap(RepositoryInfo repo) {
