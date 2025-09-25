@@ -2,13 +2,14 @@ package com.redhat.hacbs.recipes.util;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Logger;
 import org.eclipse.jgit.errors.UnsupportedCredentialItem;
 import org.eclipse.jgit.transport.CredentialItem;
 import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.URIish;
+import org.jboss.logging.Logger;
 
 public class GitCredentials extends CredentialsProvider {
+    private static final Logger log = Logger.getLogger(GitCredentials.class);
 
     final Map<String, String> hostToUsername = new HashMap<>();
     final Map<String, String> hostToPassword = new HashMap<>();
@@ -23,19 +24,19 @@ public class GitCredentials extends CredentialsProvider {
                     continue;
                 }
                 if (!i.startsWith("https://")) {
-                    Logger.getLogger("git-credentials").severe("git credentials contains non-https URI's");
+                    log.warn("git credentials contains non-https URI's");
                     continue;
                 }
                 i = i.substring("https://".length());
                 var parts = i.split("@");
                 if (parts.length != 2) {
-                    Logger.getLogger("git-credentials").severe("Invalid git credentials format");
+                    log.warn("Invalid git credentials format");
                     continue;
                 }
                 String host = parts[1];
                 parts = parts[0].split(":");
                 if (parts.length != 2) {
-                    Logger.getLogger("git-credentials").severe("Invalid git credentials format");
+                    log.warn("Invalid git credentials format");
                     continue;
                 }
                 String username = parts[0];

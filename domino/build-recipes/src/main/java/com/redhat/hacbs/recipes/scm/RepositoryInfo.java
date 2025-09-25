@@ -103,6 +103,6 @@ public class RepositoryInfo {
 
     @Override
     public String toString() {
-        return "RepositoryInfo{" + "uri='" + uri + '\'' + ", path='" + path + '\'' + '}';
+        return uri + (path == null ? "" : ("/" + path));
     }
 }

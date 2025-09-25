@@ -44,10 +44,7 @@ public class TagInfo {
 
     @Override
     public String toString() {
-        return "TagInfo{" +
-                "repoInfo=" + repoInfo +
-                ", tag='" + tag + '\'' +
-                ", hash='" + hash + '\'' +
-                '}';
+        return repoInfo +
+                "#" + tag + "@" + hash.substring(0, Math.min(hash.length(), 16));
     }
 }

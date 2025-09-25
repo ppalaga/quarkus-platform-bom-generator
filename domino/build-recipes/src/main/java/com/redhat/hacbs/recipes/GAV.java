@@ -103,7 +103,8 @@ public final class GAV implements Comparable<GAV> {
 
     @Override
     public String toString() {
-        return "GAV{" + "groupId=" + groupId + ", artifactId=" + artifactId + ", version=" + version + ", tag=" + tag + '}';
+        return groupId + ":" + artifactId + ":" + version
+                + (tag != null ? ("#" + tag.substring(0, Math.min(tag.length(), 16))) : "");
     }
 
     @Override
