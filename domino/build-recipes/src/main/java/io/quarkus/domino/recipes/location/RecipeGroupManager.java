@@ -34,7 +34,7 @@ public class RecipeGroupManager {
         List<Path> groupResults = new ArrayList<>();
 
         var group = gav.getGroupId();
-        log.infof("Looking up %s", group);
+        log.tracef("Looking up %s", group);
 
         List<RecipePathMatch> paths = new ArrayList<>();
         //we need to do a lookup
@@ -50,28 +50,28 @@ public class RecipeGroupManager {
             if (path.getArtifactAndVersion() != null) {
                 //if there is a file specific to this group, artifact and version it takes priority
                 Path resolvedPath = path.getArtifactAndVersion().resolve(BuildRecipe.SCM.getName());
-                log.infof("Searching for recipe in %s for specific path for GAV", resolvedPath);
+                log.tracef("Searching for recipe in %s for specific path for GAV", resolvedPath);
                 if (Files.exists(resolvedPath)) {
                     artifactVersionResults.add(resolvedPath);
                 }
             }
             if (path.getArtifact() != null) {
                 Path resolvedPath = path.getArtifact().resolve(BuildRecipe.SCM.getName());
-                log.infof("Searching for recipe in %s for specific path for GAV", resolvedPath);
+                log.tracef("Searching for recipe in %s for specific path for GAV", resolvedPath);
                 if (Files.exists(resolvedPath)) {
                     artifactResults.add(resolvedPath);
                 }
             }
             if (path.getVersion() != null) {
                 Path resolvedPath = path.getVersion().resolve(BuildRecipe.SCM.getName());
-                log.infof("Searching for recipe in %s for specific path for GAV", resolvedPath);
+                log.tracef("Searching for recipe in %s for specific path for GAV", resolvedPath);
                 if (Files.exists(resolvedPath)) {
                     versionResults.add(resolvedPath);
                 }
             }
             if (path.getGroup() != null) {
                 Path resolvedPath = path.getGroup().resolve(BuildRecipe.SCM.getName());
-                log.infof("Searching for recipe in %s for specific path for GAV", resolvedPath);
+                log.tracef("Searching for recipe in %s for specific path for GAV", resolvedPath);
                 if (Files.exists(resolvedPath)) {
                     groupResults.add(resolvedPath);
                 }

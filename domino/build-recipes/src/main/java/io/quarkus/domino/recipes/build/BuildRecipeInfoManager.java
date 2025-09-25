@@ -5,11 +5,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Objects;
-import java.util.logging.Logger;
+import org.jboss.logging.Logger;
 
 public class BuildRecipeInfoManager implements RecipeManager<BuildRecipeInfo> {
 
-    private static final Logger log = Logger.getLogger(BuildRecipeInfoManager.class.getName());
+    private static final Logger log = Logger.getLogger(BuildRecipeInfoManager.class);
 
     @Override
     public BuildRecipeInfo parse(InputStream file)

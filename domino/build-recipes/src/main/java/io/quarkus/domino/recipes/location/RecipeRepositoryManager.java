@@ -95,6 +95,7 @@ public class RecipeRepositoryManager implements RecipeDirectory {
                     fetchAndReset(remote, branch, git);
                 } else {
                     /* Shallow clone */
+                    log.infof("Cloning recipe repo %s to %s", remote, directory);
                     git = Git.cloneRepository()
                             .setBranch(branch)
                             .setDirectory(directory.toFile())
@@ -112,6 +113,7 @@ public class RecipeRepositoryManager implements RecipeDirectory {
     }
 
     public static RecipeDirectory createLocal(Path directory) throws GitAPIException {
+        log.infof("Opening local recipe repo %s", directory);
         if (!Files.isDirectory(directory)) {
             throw new IllegalArgumentException(directory + " is not a valid directory");
         }
@@ -229,7 +231,7 @@ public class RecipeRepositoryManager implements RecipeDirectory {
             log.warnf(e, "Could not forget local changes in %s", dir);
         }
 
-        log.infof("Fetching from %s", useUrl);
+        log.infof("Fetching recipe repo from %s to %s", useUrl, git.getRepository().getWorkTree());
         final String remoteAlias = "origin";
         try {
             ensureRemoteAvailable(useUrl, remoteAlias, git);

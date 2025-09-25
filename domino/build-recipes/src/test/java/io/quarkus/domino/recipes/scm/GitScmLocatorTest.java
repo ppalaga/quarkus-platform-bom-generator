@@ -10,10 +10,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.jboss.logging.Logger;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class GitScmLocatorTest {
+    private static final Logger log = Logger.getLogger(GitScmLocatorTest.class);
 
     @Test
     void lookupScmInfoRelaxNG() {
@@ -51,7 +53,7 @@ class GitScmLocatorTest {
                     .build();
             assertCommonsTag(locator);
 
-            System.out.println("t1 " + (System.currentTimeMillis() - t1));
+            log.infof("Lookup time with clonig: %d ms", (System.currentTimeMillis() - t1));
 
             assertThat(gitCloneDir).exists();
             assertThat(gitCloneDir.resolve(
@@ -66,7 +68,7 @@ class GitScmLocatorTest {
                     .setGitCloneBaseDir(gitCloneDir)
                     .build();
             assertCommonsTag(locator);
-            System.out.println("t2 " + (System.currentTimeMillis() - t1));
+            log.infof("Lookup time with fetch & reset: %d ms", (System.currentTimeMillis() - t1));
         }
     }
 
