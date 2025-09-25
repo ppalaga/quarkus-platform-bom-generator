@@ -1,5 +1,7 @@
 package com.redhat.hacbs.recipes.scm;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.redhat.hacbs.recipes.GAV;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -39,6 +41,18 @@ class GitScmLocatorTest {
         runPassingTest("1.0.Final", "1.0", "1.0", "1.0.a1");
         runFailingTest("1.0", "1.0.Beta1", "1.0.Alpha1");
         runFailingTest("1.0", "1.0.Final", "1.0.Alpha1");
+    }
+
+    @Test
+    void uriToFileName() {
+        assertThat(GitScmLocator.uriToFileName("https://github.com/path/to/report.pdf?download=1#section"))
+                .isEqualTo("github.com-path-to-report.pdf-download-1-section");
+        assertThat(GitScmLocator.uriToFileName("https://github.com/org/repo.git")).isEqualTo("");
+        assertThat(GitScmLocator.uriToFileName("file:///C:/Program Files/Some App/app.exe")).isEqualTo("");
+        assertThat(GitScmLocator.uriToFileName("C:\\Program Files\\Some App\\app.exe")).isEqualTo("");
+        assertThat(GitScmLocator.uriToFileName("git+ssh://git@github.com:owner/repo.git")).isEqualTo("");
+        assertThat(GitScmLocator.uriToFileName("https://example.com/trailing-dot.")).isEqualTo("");
+        assertThat(GitScmLocator.uriToFileName("git@github.com:quarkusio/quarkus.git")).isEqualTo("");
     }
 
     void runPassingTest(String version, String expected, String... tags) {

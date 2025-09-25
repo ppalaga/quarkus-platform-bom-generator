@@ -45,7 +45,6 @@ public class GitScmLocator implements ScmLocator {
         public RecipeGroupManager recipeGroupManager;
         private List<String> recipeRepos = List.of(BuildRecipe.DEFAULT_RECIPE_REPO_URL);
         private boolean cacheRepoTags;
-        private String cacheUrl;
         private ScmLocator fallbackScmLocator;
         private boolean cloneLocalRecipeRepos = true;
         private Path gitCloneBaseDir;
@@ -369,6 +368,14 @@ public class GitScmLocator implements ScmLocator {
             }
         }
         return selectedTag;
+    }
+
+    static String uriToFileName(String uri) {
+        return uri.replaceAll("^(http:|https:|git:|git@|git+ssh:|ssh:)", "")
+                .replaceAll("[^A-Za-z0-9._-]+", "-")
+                .replace("-[\\-]+", "-")
+                .replaceAll("^[-.]+", "")
+                .replaceAll("[-.]+$", "");
     }
 
     private Map<String, String> getTagToHashMap(RepositoryInfo repo) {

@@ -1,6 +1,9 @@
 package io.quarkus.domino;
 
 import com.redhat.hacbs.recipes.GAV;
+import com.redhat.hacbs.recipes.location.RecipeDirectory;
+import com.redhat.hacbs.recipes.location.RecipeGroupManager;
+import com.redhat.hacbs.recipes.location.RecipeRepositoryManager;
 import com.redhat.hacbs.recipes.scm.GitScmLocator;
 import com.redhat.hacbs.recipes.scm.RepositoryInfo;
 import com.redhat.hacbs.recipes.scm.ScmLocator;
@@ -37,6 +40,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.ServiceLoader;
 import java.util.Set;
@@ -46,6 +50,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.maven.model.DependencyManagement;
@@ -63,6 +68,7 @@ import org.eclipse.aether.resolution.ArtifactDescriptorResult;
 import org.eclipse.aether.util.graph.manager.DependencyManagerUtils;
 import org.eclipse.aether.util.graph.transformer.ConflictResolver;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Repository;
 
 public class ProjectDependencyResolver {
@@ -1077,6 +1083,7 @@ public class ProjectDependencyResolver {
                 .setGitCloneBaseDir(cloneBaseDir)
                 .setCacheRepoTags(true)
                 .setCloneLocalRecipeRepos(false)
+                .setRecipeGroupManager(createRecipeGroupManager(config.getRecipeRepos()))
                 .setFallback(gav -> {
 
                     var pomArtifact = new DefaultArtifact(gav.getGroupId(), gav.getArtifactId(), ArtifactCoords.TYPE_POM,
@@ -1177,7 +1184,24 @@ public class ProjectDependencyResolver {
         return releaseResolver;
     }
 
-    private static ScmRevisionResolver getLegacyReleaseIdResolver(MavenArtifactResolver artifactResolver, MessageWriter log) {
+   private static RecipeGroupManager createRecipeGroupManager(Path gitCloneBaseDir, List<String> recipeRepos) {
+       //checkout the git recipe database and load the recipes
+       final List<RecipeDirectory> managers = new ArrayList<>(recipeRepos.size());
+       for (var i : recipeRepos) {
+           final RecipeRepositoryManager repoManager;
+               log.infof("Cloning recipe repo %s", i);
+               try {
+                   repoManager = RecipeRepositoryManager.create(i, Optional.empty(),
+                                   Files.createTempDirectory(gitCloneBaseDir, "recipe"));
+               } catch (Exception e) {
+                   throw new RuntimeException("Failed to checkout " + i, e);
+               }
+           managers.add(repoManager);
+       }
+       return new RecipeGroupManager(managers);
+    }
+
+ private static ScmRevisionResolver getLegacyReleaseIdResolver(MavenArtifactResolver artifactResolver, MessageWriter log) {
         final List<ReleaseIdDetector> releaseDetectors = new ArrayList<>();
         releaseDetectors.add(new PncReleaseIdDetector(new PncBuildInfoProvider()));
         releaseDetectors.add(
