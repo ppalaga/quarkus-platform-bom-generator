@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -346,7 +347,8 @@ public class ProjectDependencyResolver {
             resolveDependenciesInternal();
             configureReleaseRepoDeps();
             logInternal();
-            return ReleaseCollection.of(ReleaseCollection.filter(releaseRepos.values(), artifactSelector)).sort();
+            return null;
+            //return ReleaseCollection.of(ReleaseCollection.filter(releaseRepos.values(), artifactSelector)).sort();
         } finally {
             close();
         }
@@ -455,7 +457,7 @@ public class ProjectDependencyResolver {
                     logComment("Code repository dependency graph");
                     for (ReleaseRepo r : sorted) {
                         if (r.isRoot()) {
-                            logReleaseRepoDep(r, 0);
+                            logReleaseRepoDep(r, 0, new LinkedHashSet<>());
                         }
                     }
                     logComment("End of code repository dependency graph");
@@ -1062,36 +1064,41 @@ public class ProjectDependencyResolver {
                 .collect(Collectors.toList());
 
         final Path cloneBaseDir;
-        try {
-            cloneBaseDir = Files.createTempDirectory("domino");
-            Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    log.debug("Removing %s", cloneBaseDir);
-                    var map = new TreeMap<Integer, List<Path>>(Comparator.<Integer> naturalOrder().reversed());
-                    try (Stream<Path> files = Files.walk(cloneBaseDir)) {
-                        final Iterator<Path> i = files.iterator();
-                        while (i.hasNext()) {
-                            var p = i.next();
-                            if (Files.isDirectory(p)) {
-                                map.computeIfAbsent(p.getNameCount(), k -> new ArrayList<>()).add(p);
-                            } else {
-                                Files.delete(p);
+        if (config.getGitCloneDir() != null) {
+            cloneBaseDir = Path.of(config.getGitCloneDir().replace("${user.home}", System.getProperty("user.home")));
+        } else {
+            try {
+                cloneBaseDir = Files.createTempDirectory("domino");
+                Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        log.debug("Removing %s", cloneBaseDir);
+                        var map = new TreeMap<Integer, List<Path>>(Comparator.<Integer> naturalOrder().reversed());
+                        try (Stream<Path> files = Files.walk(cloneBaseDir)) {
+                            final Iterator<Path> i = files.iterator();
+                            while (i.hasNext()) {
+                                var p = i.next();
+                                if (Files.isDirectory(p)) {
+                                    map.computeIfAbsent(p.getNameCount(), k -> new ArrayList<>()).add(p);
+                                } else {
+                                    Files.delete(p);
+                                }
                             }
-                        }
-                        for (List<Path> paths : map.values()) {
-                            for (Path p : paths) {
-                                Files.delete(p);
+                            for (List<Path> paths : map.values()) {
+                                for (Path p : paths) {
+                                    Files.delete(p);
+                                }
                             }
+                        } catch (IOException e) {
+                            log.warn("Failed to delete " + cloneBaseDir + ": " + e.getLocalizedMessage());
                         }
-                    } catch (IOException e) {
-                        log.warn("Failed to delete " + cloneBaseDir + ": " + e.getLocalizedMessage());
                     }
-                }
-            }));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+                }));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
+
         final AtomicReference<ScmRevisionResolver> ref = new AtomicReference<>();
         final ScmLocator scmLocator = GitScmLocator.builder()
                 .setRecipeRepos(config.getRecipeRepos())
@@ -1133,9 +1140,10 @@ public class ProjectDependencyResolver {
                     }
                     if (releaseId != null && releaseId.getRepository().hasUrl()
                             && releaseId.getRepository().getUrl().contains("git")) {
-                        log.warn("The SCM recipe database is missing an entry for " + gav.getGroupId() + ":"
-                                + gav.getArtifactId() + ":" + gav.getVersion() + ", " + releaseId
-                                + " will be used as a fallback");
+                        log.debug("No SCM information found for " + gav.getGroupId() + ":"
+                                + gav.getArtifactId() + ":" + gav.getVersion() + " in " + config.getRecipeRepos() + ", "
+                                + releaseId
+                                + " from pom.xml will be used as a fallback");
                         return new TagInfo(new RepositoryInfo("git", releaseId.getRepository().getUrl()),
                                 releaseId.getValue(), null);
                     }
@@ -1292,7 +1300,13 @@ public class ProjectDependencyResolver {
         return new ScmRevisionResolver(artifactResolver, releaseDetectors, log);
     }
 
-    private void logReleaseRepoDep(ReleaseRepo repo, int depth) {
+    private void logReleaseRepoDep(ReleaseRepo repo, int depth, Set<ScmRevision> stack) {
+        final ScmRevision revision = repo.getRevision();
+        if (stack.contains(revision)) {
+            /* Break cyclic dependencies */
+            return;
+        }
+        stack.add(revision);
         final StringBuilder sb = new StringBuilder();
         for (int i = 0; i < depth; ++i) {
             sb.append("  ");
@@ -1301,8 +1315,9 @@ public class ProjectDependencyResolver {
                 .append(repo);
         logComment(sb.toString());
         for (ReleaseRepo child : repo.dependencies.values()) {
-            logReleaseRepoDep(child, depth + 1);
+            logReleaseRepoDep(child, depth + 1, stack);
         }
+        stack.remove(revision);
     }
 
     private static boolean isPncVersion(Collection<ArtifactCoords> artifacts) {
