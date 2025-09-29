@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.redhat.hacbs.recipes.BuildRecipe;
 import com.redhat.hacbs.recipes.GAV;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -72,6 +73,32 @@ class GitScmLocatorTest {
         }
     }
 
+    @Test
+    void loadStore() {
+        final Object lock = new Object();
+        final Path file = Paths.get("target/GitScmLocatorTest/loadStore-" + UUID.randomUUID() + ".txt");
+        assertThat(file).doesNotExist();
+
+        {
+            final Map<String, Map<String, String>> map = GitScmLocator.load(file, lock);
+            assertThat(map).isEmpty();
+        }
+
+        /* store some items */
+        final Map<String, String> fooMap = Map.of("k1", "v1", "k2", "v2");
+        GitScmLocator.store(file, lock, "foo", fooMap);
+        final Map<String, String> fooBarMap = Map.of("fb1", "fbv1", "fb2", "fbv2");
+        GitScmLocator.store(file, lock, "foo bar", fooBarMap);
+
+        {
+            final Map<String, Map<String, String>> map = GitScmLocator.load(file, lock);
+            assertThat(map).hasSize(2);
+            assertThat(map.get("foo")).isEqualTo(fooMap);
+            assertThat(map.get("foo bar")).isEqualTo(fooBarMap);
+        }
+
+    }
+
     //test tag mapping heuristics
     @Test
     void runTagHeuristic() {
@@ -104,14 +131,14 @@ class GitScmLocatorTest {
     void runPassingTest(String version, String expected, String... tags) {
         Map<String, String> tagMap = new HashMap<>();
         Arrays.stream(tags).forEach(a -> tagMap.put(a, ""));
-        Assertions.assertEquals(expected, GitScmLocator.runTagHeuristic(version, tagMap));
+        Assertions.assertEquals(expected, GitScmLocator.runTagHeuristic(version, tagMap, "http://github.com/foo/bar"));
     }
 
     void runFailingTest(String version, String... tags) {
         Map<String, String> tagMap = new HashMap<>();
         Arrays.stream(tags).forEach(a -> tagMap.put(a, ""));
         Assertions.assertThrows(RuntimeException.class, () -> {
-            GitScmLocator.runTagHeuristic(version, tagMap);
+            GitScmLocator.runTagHeuristic(version, tagMap, "http://github.com/foo/bar");
         });
     }
 }

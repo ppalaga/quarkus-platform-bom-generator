@@ -60,8 +60,8 @@ public class RecipeLayoutManager implements RecipeDirectory {
         Path artifactFolder = groupPath.resolve(ARTIFACT);
         Path artifactPath = artifactFolder.resolve(artifactId);
         Path artifactAndVersionPath = null;
-        if (log.isDebugEnabled()) {
-            log.debugf("Searching for recipe in %s", shortenPath(groupPath));
+        if (log.isTraceEnabled()) {
+            log.tracef("Searching for %s:%s:%s recipe in %s", groupId, artifactId, version, shortenPath(groupPath));
         }
 
         if (Files.notExists(groupPath)) {

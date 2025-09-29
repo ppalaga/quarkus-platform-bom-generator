@@ -8,17 +8,22 @@ import com.redhat.hacbs.recipes.location.RecipeRepositoryManager;
 import com.redhat.hacbs.recipes.util.GitCredentials;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -138,6 +143,8 @@ public class GitScmLocator implements ScmLocator {
     private final Map<String, Map<String, String>> repoTagsToHash;
     private final boolean cloneLocalRecipeRepos;
     private final Path gitCloneBaseDir;
+    private final Path tagInfoFile;
+    private final Object tagInfoFileLock;
 
     private RecipeGroupManager recipeGroupManager;
 
@@ -145,10 +152,12 @@ public class GitScmLocator implements ScmLocator {
         this.recipeRepos = builder.recipeRepos;
         this.cacheRepoTags = builder.cacheRepoTags;
         this.fallbackScmLocator = builder.fallbackScmLocator;
-        this.repoTagsToHash = cacheRepoTags ? new HashMap<>() : Map.of();
         this.cloneLocalRecipeRepos = builder.cloneLocalRecipeRepos;
         this.recipeGroupManager = builder.recipeGroupManager;
         this.gitCloneBaseDir = builder.gitCloneBaseDir;
+        this.tagInfoFile = gitCloneBaseDir.resolve("tags-cache.txt");
+        this.tagInfoFileLock = new Object();
+        this.repoTagsToHash = cacheRepoTags ? load(tagInfoFile, tagInfoFileLock) : Map.of();
     }
 
     private RecipeGroupManager getRecipeGroupManager() {
@@ -196,10 +205,14 @@ public class GitScmLocator implements ScmLocator {
 
         var recipeGroupManager = getRecipeGroupManager();
 
+        if (toBuild.getArtifactId().equals("quarkus-cxf-axiom-api-stub")) {
+            System.out.println("quarkus-cxf-axiom-api-stub");
+        }
+
         //look for SCM info
         var recipes = recipeGroupManager
                 .lookupScmInformation(toBuild);
-        if (log.isDebugEnabled()) {
+        if (log.isTraceEnabled()) {
             log.tracef(
                     "Build info files found for %s: %s",
                     toBuild,
@@ -211,6 +224,11 @@ public class GitScmLocator implements ScmLocator {
 
         List<RepositoryInfo> repos = new ArrayList<>();
         List<TagMapping> allMappings = new ArrayList<>();
+
+        if (toBuild.getArtifactId().equals("quarkus-cxf-axiom-api-stub")) {
+            System.out.println("quarkus-cxf-axiom-api-stub");
+        }
+
         for (var recipe : recipes) {
             ScmInfo main;
             try {
@@ -228,7 +246,7 @@ public class GitScmLocator implements ScmLocator {
 
         TagInfo fallbackTagInfo = null;
         if (repos.isEmpty()) {
-            log.debugf("No SCM information found for %s, attempting to use the pom to determine the location", toBuild);
+            log.tracef("No SCM information found for %s, attempting to use the pom to determine the location", toBuild);
             //TODO: do we want to rely on pom discovery long term? Should we just use this to update the database instead?
             if (fallbackScmLocator != null) {
                 fallbackTagInfo = fallbackScmLocator.resolveTagInfo(toBuild);
@@ -281,7 +299,7 @@ public class GitScmLocator implements ScmLocator {
 
                 if (selectedTag == null) {
                     try {
-                        selectedTag = runTagHeuristic(version, tagsToHash);
+                        selectedTag = runTagHeuristic(version, tagsToHash, parsedInfo.getUri());
                     } catch (RuntimeException e) {
                         if (firstFailure == null) {
                             firstFailure = e;
@@ -289,7 +307,7 @@ public class GitScmLocator implements ScmLocator {
                             firstFailure.addSuppressed(e);
                         }
                         //it is a very common pattern to use underscores instead of dots in the tags
-                        selectedTag = runTagHeuristic(underscoreVersion, tagsToHash);
+                        selectedTag = runTagHeuristic(underscoreVersion, tagsToHash, parsedInfo.getUri());
                     }
                 }
 
@@ -302,7 +320,7 @@ public class GitScmLocator implements ScmLocator {
                     return log(new TagInfo(parsedInfo, selectedTag, hash));
                 }
             } catch (RuntimeException ex) {
-                log.error("Failure to determine tag", ex);
+                log.errorf(ex, "Failure to determine tag for %s", toBuild);
                 if (firstFailure == null) {
                     firstFailure = new RuntimeException("Failed to determine tag for repo " + parsedInfo.getUri(), ex);
                 } else {
@@ -318,11 +336,11 @@ public class GitScmLocator implements ScmLocator {
     }
 
     static TagInfo log(TagInfo result) {
-        log.infof("Found tag: %s", result);
+        log.debugf("Found tag: %s", result);
         return result;
     }
 
-    static String runTagHeuristic(String version, Map<String, String> tagsToHash) {
+    static String runTagHeuristic(String version, Map<String, String> tagsToHash, String uri) {
         String selectedTag = null;
         Set<String> versionExactContains = new HashSet<>();
         Set<String> tagExactContains = new HashSet<>();
@@ -353,8 +371,7 @@ public class GitScmLocator implements ScmLocator {
                         selectedTag = i;
                     } else {
                         throw new RuntimeException(
-                                "Could not determine tag for " + version
-                                        + " multiple possible tags were found: "
+                                "Multiple possible tags were found for version " + version + " in " + uri + ": "
                                         + versionExactContains);
                     }
                 }
@@ -393,14 +410,70 @@ public class GitScmLocator implements ScmLocator {
     }
 
     private Map<String, String> getTagToHashMap(RepositoryInfo repo) {
-        Map<String, String> tagsToHash = repoTagsToHash.get(repo.getUri());
-        if (tagsToHash == null) {
-            tagsToHash = getTagToHashMapFromGit(repo);
-            if (cacheRepoTags) {
-                repoTagsToHash.put(repo.getUri(), tagsToHash);
+        if (!cacheRepoTags) {
+            return getTagToHashMapFromGit(repo);
+        }
+        return repoTagsToHash.computeIfAbsent(
+                repo.getUri(),
+                k -> {
+                    final Map<String, String> tags = getTagToHashMapFromGit(repo);
+                    /* Append the new entry to the local file */
+                    store(tagInfoFile, tagInfoFileLock, k, tags);
+                    return tags;
+                });
+    }
+
+    static Map<String, Map<String, String>> load(Path file, Object tagInfoFileLock) {
+        final Map<String, Map<String, String>> result = new ConcurrentHashMap<>();
+        if (Files.isRegularFile(file)) {
+            synchronized (tagInfoFileLock) {
+                try {
+                    Iterator<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8).iterator();
+                    String key = null;
+                    Map<String, String> val = null;
+                    while (lines.hasNext()) {
+                        final String line = lines.next();
+                        if (line.isEmpty()) {
+                            continue;
+                        } else if (!line.startsWith(" ")) {
+                            if (key != null) {
+                                result.put(key, val);
+                            }
+                            key = line;
+                            val = new LinkedHashMap<>();
+                        } else {
+                            String[] entry = line.split(" ");
+                            if (entry.length != 3) {
+                                throw new IllegalStateException("Line '" + line + "' has " + entry.length + " elements");
+                            }
+                            val.put(entry[1], entry[2]);
+                        }
+                    }
+                    if (key != null) {
+                        result.put(key, val);
+                    }
+                } catch (IOException e) {
+                    throw new RuntimeException("Could not read " + file, e);
+                }
+            }
+            log.infof("Loaded tag -> SHA mappings for %d git repositories from %s", result.size(), file);
+        }
+        return result;
+    }
+
+    static void store(Path tagInfoFile, Object tagInfoFileLock, String k, Map<String, String> tags) {
+        final StringBuilder sb = new StringBuilder(k).append('\n');
+        tags.forEach((kk, vv) -> sb.append(' ').append(kk).append(' ').append(vv).append('\n'));
+        sb.append('\n');
+        final byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        synchronized (tagInfoFileLock) {
+            try {
+                Files.createDirectories(tagInfoFile.getParent());
+                Files.write(tagInfoFile, bytes, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            } catch (IOException e) {
+                throw new RuntimeException("Could not write to " + tagInfoFile, e);
             }
         }
-        return tagsToHash;
     }
 
     private static Map<String, String> getTagToHashMapFromGit(RepositoryInfo parsedInfo) {
@@ -414,12 +487,11 @@ public class GitScmLocator implements ScmLocator {
         } catch (GitAPIException e) {
             throw new RuntimeException("Failed to obtain a list of tags from " + parsedInfo.getUri(), e);
         }
-        tagsToHash = new HashMap<>(tags.size());
+        tagsToHash = new LinkedHashMap<>(tags.size());
         for (var tag : tags) {
             var name = tag.getName().replace("refs/tags/", "");
             tagsToHash.put(name, tag.getPeeledObjectId() == null ? tag.getObjectId().name() : tag.getPeeledObjectId().name());
         }
-
-        return tagsToHash;
+        return Collections.unmodifiableMap(tagsToHash);
     }
 }

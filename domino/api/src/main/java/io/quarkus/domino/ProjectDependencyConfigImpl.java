@@ -49,6 +49,7 @@ public class ProjectDependencyConfigImpl implements ProjectDependencyConfig {
     private final Collection<String> hideArtifacts;
     private final boolean gradleJava8;
     private final String gradleJavaHome;
+    private final String gitCloneDir;
 
     private ProjectDependencyConfigImpl(ProjectDependencyConfig other) {
         var productInfo = other.getProductInfo();
@@ -89,6 +90,7 @@ public class ProjectDependencyConfigImpl implements ProjectDependencyConfig {
         includeOptionalDeps = other.isIncludeOptionalDeps();
         gradleJava8 = other.isGradleJava8();
         gradleJavaHome = other.getGradleJavaHome();
+        gitCloneDir = other.getGitCloneDir();
     }
 
     @Override
@@ -269,6 +271,11 @@ public class ProjectDependencyConfigImpl implements ProjectDependencyConfig {
         return gradleJavaHome;
     }
 
+    @Override
+    public String getGitCloneDir() {
+        return gitCloneDir;
+    }
+
     static class Builder implements ProjectDependencyConfig.Mutable {
 
         private ProductInfo productInfo;
@@ -304,6 +311,7 @@ public class ProjectDependencyConfigImpl implements ProjectDependencyConfig {
         private Collection<String> hideArtifacts = new ArrayList<>(0);
         private boolean gradleJava8;
         private String gradleJavaHome;
+        private String gitCloneDir;
 
         Builder() {
         }
@@ -738,6 +746,17 @@ public class ProjectDependencyConfigImpl implements ProjectDependencyConfig {
         public ProjectDependencyConfig build() {
             return new ProjectDependencyConfigImpl(this);
         }
+
+        @Override
+        public String getGitCloneDir() {
+            return gitCloneDir;
+        }
+
+        @Override
+        public Mutable setGitCloneDir(String dir) {
+            this.gitCloneDir = dir;
+            return this;
+        }
     }
 
     static <T> List<T> toUnmodifiableList(Collection<T> o) {
@@ -746,4 +765,5 @@ public class ProjectDependencyConfigImpl implements ProjectDependencyConfig {
         }
         return List.copyOf(o);
     }
+
 }
