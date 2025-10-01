@@ -345,8 +345,7 @@ public class ProjectDependencyResolver {
             resolveDependenciesInternal();
             configureReleaseRepoDeps();
             logInternal();
-            return null;
-            //return ReleaseCollection.of(ReleaseCollection.filter(releaseRepos.values(), artifactSelector)).sort();
+            return ReleaseCollection.of(ReleaseCollection.filter(releaseRepos.values(), artifactSelector)).sort();
         } finally {
             close();
         }
@@ -1148,12 +1147,13 @@ public class ProjectDependencyResolver {
                     final TagInfo tag = scmLocator.resolveTagInfo(gav);
                     if (tag != null) {
                         ++succeeded;
-                        var uri = tag.getRepoInfo().getUri();
+                        final RepositoryInfo repoInfo = tag.getRepoInfo();
+                        var uri = repoInfo.getUri();
                         if (uri.endsWith(".git")) {
                             // strip .git at the end
                             uri = uri.substring(0, uri.length() - 4);
                         }
-                        return ScmRevision.tag(ScmRepository.ofUrl(uri), tag.getTag());
+                        return ScmRevision.tag(ScmRepository.ofUrl(uri, repoInfo.getPath()), tag.getTag());
                     }
                 } catch (Exception e) {
                     error = e;
