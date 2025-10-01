@@ -6,19 +6,25 @@ import java.util.Objects;
 public class ScmRepository implements ReleaseOrigin {
 
     public static ScmRepository ofUrl(String url) {
-        return new ScmRepository(url, url);
+        return ofUrl(url, null);
+    }
+
+    public static ScmRepository ofUrl(String url, String path) {
+        return new ScmRepository(url, url, path);
     }
 
     public static ScmRepository ofId(String id) {
-        return new ScmRepository(id, null);
+        return new ScmRepository(id, null, null);
     }
 
     private final String id;
     private final String url;
+    private final String path;
 
-    private ScmRepository(String id, String url) {
+    private ScmRepository(String id, String url, String path) {
         this.id = Objects.requireNonNull(id, "ID is null");
         this.url = url;
+        this.path = path;
     }
 
     public String getId() {
@@ -41,6 +47,10 @@ public class ScmRepository implements ReleaseOrigin {
         return url;
     }
 
+    public String getPath() {
+        return path;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o)
@@ -48,12 +58,12 @@ public class ScmRepository implements ReleaseOrigin {
         if (o == null || getClass() != o.getClass())
             return false;
         ScmRepository that = (ScmRepository) o;
-        return Objects.equals(id, that.id) && Objects.equals(url, that.url);
+        return Objects.equals(id, that.id) && Objects.equals(url, that.url) && Objects.equals(path, that.path);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, url);
+        return Objects.hash(id, url, path);
     }
 
     @Override
